@@ -17,20 +17,20 @@
 #define VADDIO_TILT_MIN -5999
 #define VADDIO_TILT_MAX 19499
 
-#define VADDIO_TILT_MIN_DEGREES -30
-#define VADDIO_TILT_MAX_DEGREES 90
+#define VADDIO_TILT_MIN_DEGREES -30.0f
+#define VADDIO_TILT_MAX_DEGREES 90.0f
 
 #define VADDIO_PAN_MIN -3270
 #define VADDIO_PAN_MAX 3270
 
-#define VADDIO_PAN_MIN_DEGREES -170
-#define VADDIO_PAN_MAX_DEGREES 170
+#define VADDIO_PAN_MIN_DEGREES -170.0f
+#define VADDIO_PAN_MAX_DEGREES 170.0f
 
 #define VADDIO_ZOOM_MIN 0
 #define VADDIO_ZOOM_MAX 25600
 
-#define VADDIO_ZOOM_MIN_X 0
-#define VADDIO_ZOOM_MAX_X 20
+#define VADDIO_ZOOM_MIN_X 0.0f
+#define VADDIO_ZOOM_MAX_X 20.0f
 
 #define VADDIO_PAN_SPEED_MIN 0x01
 #define VADDIO_PAN_SPEED_MAX 0x18
@@ -43,8 +43,8 @@
 
 
 struct ofxVaddioPantiltPosition {
-    int pan;
-    int tilt;
+    float pan;
+    float tilt;
     bool error;
 };
 
@@ -53,6 +53,7 @@ class ofxVaddio
 public:
     void setup();
     void close();
+    void update();
     
     void enableKeyEvents();
     void disableKeyEvents();
@@ -66,10 +67,16 @@ public:
     void setZoomSpeed(float s) {
         zoom_speed = ofMap(s, 0, 1, 0, 7);
     }
-   
+    void setSpeed(float p, float t, float z) {
+        setPanSpeed(p);
+        setTiltSpeed(t);
+        setZoomSpeed(z);
+    }
+    
     // Inquiry
     ofxVaddioPantiltPosition getPosition();
-    int getZoom();
+    float getZoom();
+    
     
     // Commands
     void panLeft();
@@ -88,23 +95,20 @@ public:
     void memorySet(int num);
     void memoryRecall(int num);
     void presetSpeed(int pan, int tilt, int zoom);
-    bool bMemorySetMode;
     
     // Utility
-    void absolutePositionNorm(float pan, float tilt) {
-        pan = ofMap(pan, -1, 1, VADDIO_PAN_MIN, VADDIO_PAN_MAX);
-        tilt = ofMap(tilt, -1, 1, VADDIO_TILT_MIN, VADDIO_TILT_MAX);
+    void setPTZ(float pan, float tilt, float zoom) {
         absolutePosition(pan, tilt);
+        zoomDirect(zoom);
     }
-
+    
     // Keyboard Events
     void keyReleased(ofKeyEventArgs& args);
     void keyPressed(ofKeyEventArgs& args);
     
-    bool bShiftDown;
-    bool bCommandDown;
-    
 protected:
+    
+    bool keyIsDown[255];
     
     ofSerial serial;
 
@@ -112,5 +116,11 @@ protected:
     char pan_speed;
     char tilt_speed;
     int zoom_speed;
+    
+    bool bQueryInProgress;
+    ofxVaddioPantiltPosition queryPos;
+    float queryZoom;
+    float nextQuery;
+    
 };
 

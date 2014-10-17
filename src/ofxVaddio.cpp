@@ -18,12 +18,37 @@ void ofxVaddio::setup() {
     setTiltSpeed(0.5);
     setZoomSpeed(0.5);
     
-    bShiftDown=false;
-    bCommandDown=false;
-    bMemorySetMode = false;
-    
     home();
     presetSpeed(0x09, 0x07, 4);
+    
+    bQueryInProgress = false;
+    
+    for(int i=0; i<255; i++) keyIsDown[i] = false;
+}
+
+// ----------------------------------
+void ofxVaddio::update() {
+    float now = ofGetElapsedTimef();
+    
+    if(bQueryInProgress && now>nextQuery) {
+        nextQuery = now+0.5;
+        
+        if(queryZoom == -1) {
+            queryZoom = getZoom();
+        }
+        
+        if(queryPos.error) {
+            queryPos = getPosition();
+        }
+        
+        if(queryZoom!=-1 && !queryPos.error) {
+            stringstream ss;
+            ss << "ptz " << queryPos.pan << " " << queryPos.tilt << " " << queryZoom;
+            ofSendMessage(ss.str());
+            //ofSystemTextBoxDialog("PTZ command", ss.str());
+            bQueryInProgress = false;
+        }
+    }
 }
 
 // ----------------------------------
@@ -51,8 +76,7 @@ void ofxVaddio::writePacket(vector<int>& packet) {
     serial.writeByte(VADDIO_TERMINATOR);
     out << ofToHex((char)VADDIO_TERMINATOR);
     
-    ofLogNotice("ofxVaddio >") << out.str();
-    
+    ofLogVerbose("ofxVaddio >") << out.str();
     
     stringstream in;
     packet.clear();
@@ -68,7 +92,7 @@ void ofxVaddio::writePacket(vector<int>& packet) {
         ttl--;
     } while(ch != VADDIO_TERMINATOR && ttl>0);
 
-    ofLogNotice("ofxVaddio <") << in.str();
+    ofLogVerbose("ofxVaddio <") << in.str();
 }
 
 // ----------------------------------
@@ -93,18 +117,30 @@ ofxVaddioPantiltPosition ofxVaddio::getPosition() {
     }
     
     // Lifted from VISCA_get_pantilt_position
-    pos.pan =   ((packet[2] & 0xf) << 12) +
+    int pan =   ((packet[2] & 0xf) << 12) +
                 ((packet[3] & 0xf) <<  8) +
                 ((packet[4] & 0xf) <<  4) +
                 (packet[5] & 0xf);
     
-    pos.tilt =  ((packet[6] & 0xf) << 12) +
+    int tilt =  ((packet[6] & 0xf) << 12) +
                 ((packet[7] & 0xf) <<  8) +
                 ((packet[8] & 0xf) <<  4) +
                 (packet[9] & 0xf);
     
-    if (pos.pan > 0x8000) pos.pan -= 0x10000;
-    if (pos.tilt > 0x8000) pos.tilt -= 0x10000;
+    if (pan > 0x8000) pan -= 0x10000;
+    if (tilt > 0x8000) tilt -= 0x10000;
+    
+    
+    pos.pan = ofMap(pan,
+                    VADDIO_PAN_MIN,
+                    VADDIO_PAN_MAX,
+                    VADDIO_PAN_MIN_DEGREES,
+                    VADDIO_PAN_MAX_DEGREES );
+    pos.tilt = ofMap(tilt,
+                     VADDIO_TILT_MIN,
+                     VADDIO_TILT_MAX,
+                     VADDIO_TILT_MIN_DEGREES,
+                     VADDIO_TILT_MAX_DEGREES );
     
     ofLogNotice("ofxVaddio") << "pan = " << pos.pan << " tilt = " << pos.tilt;
     return pos;
@@ -112,7 +148,7 @@ ofxVaddioPantiltPosition ofxVaddio::getPosition() {
 
 // -----------------------------------
 // CAM_ZoomPosInq  09 04 47 FF
-int ofxVaddio::getZoom() {
+float ofxVaddio::getZoom() {
     ofLogNotice("ofxVaddio") << "getZoom";
     
     vector<int> packet;
@@ -123,13 +159,21 @@ int ofxVaddio::getZoom() {
     
     if(packet.size()<6)  {
         ofLogWarning() << "bad response from CAM_ZoomPosInq";
-        return 0;
+        return -1;
     }
     
-    int zoom =  (packet[2] << 12) +
+    int z =  (packet[2] << 12) +
                 (packet[3] <<  8) +
                 (packet[4] <<  4) +
                 (packet[5]);
+    
+    float zoom = ofMap(z,
+                 VADDIO_ZOOM_MIN,
+                 VADDIO_ZOOM_MAX,
+                 VADDIO_ZOOM_MIN_X,
+                 VADDIO_ZOOM_MAX_X);
+    
+    ofLogNotice("ofxVaddio") << "zoom = " << zoom;
     return zoom;
 }
 
@@ -255,7 +299,18 @@ void ofxVaddio::absolutePosition(ofxVaddioPantiltPosition pos) {
 
 // -----------------------------------
 void ofxVaddio::absolutePosition(int pan_pos, int tilt_pos) {
-    ofLogNotice("ofxVaddio") << "absolutePosition";
+    ofLogNotice("ofxVaddio") << "absolutePosition " << pan_pos << " " << tilt_pos;
+    
+    pan_pos = ofMap(pan_pos,
+                  VADDIO_PAN_MIN_DEGREES,
+                  VADDIO_PAN_MAX_DEGREES,
+                  VADDIO_PAN_MIN,
+                  VADDIO_PAN_MAX);
+    tilt_pos = ofMap(tilt_pos,
+                  VADDIO_TILT_MIN_DEGREES,
+                  VADDIO_TILT_MAX_DEGREES,
+                  VADDIO_TILT_MIN,
+                  VADDIO_TILT_MAX);
     
     vector<int> packet;
     packet.push_back(VADDIO_COMMAND_PREFIX);
@@ -330,7 +385,13 @@ void ofxVaddio::memoryRecall(int num) {
 
 // -----------------------------------
 void ofxVaddio::zoomDirect(int zoom) {
-    ofLogNotice("ofxVaddio") << "zoomDirect";
+    ofLogNotice("ofxVaddio") << "zoomDirect " << zoom;
+    zoom = ofMap(zoom,
+                  VADDIO_ZOOM_MIN_X,
+                  VADDIO_ZOOM_MAX_X,
+                  VADDIO_ZOOM_MIN,
+                  VADDIO_ZOOM_MAX);
+    
     vector<int> packet;
     packet.push_back(VADDIO_COMMAND_PREFIX);
     packet.push_back(0x04);
@@ -345,23 +406,7 @@ void ofxVaddio::zoomDirect(int zoom) {
 
 // ----------------------------------
 void ofxVaddio::keyPressed(ofKeyEventArgs& args) {
-    if(args.key==OF_KEY_SHIFT) {
-        bShiftDown=true;
-    }
-    if(args.key==OF_KEY_COMMAND) {
-        bCommandDown=true;
-    }
-
-    if(args.key==OF_KEY_TAB) {
-        bMemorySetMode = !bMemorySetMode;
-    }
-
-    if(args.key=='t') {
-        ofxVaddioPantiltPosition pos;
-        pos.pan = 100;
-        pos.tilt = 400;
-        absolutePosition(pos);
-    }
+    if(keyIsDown[args.key]) return;
     
     if(args.key==OF_KEY_LEFT) {
         panLeft();
@@ -378,43 +423,31 @@ void ofxVaddio::keyPressed(ofKeyEventArgs& args) {
     if(args.key=='h') {
         home();
     }
-    if(args.key==' ') {
-        stopPanTilt();
-    }
-    if(args.key=='+') {
+    if(args.key==']') {
         zoomIn();
     }
-    if(args.key=='-') {
+    if(args.key=='[') {
         zoomOut();
     }
-    if(args.key==OF_KEY_BACKSPACE) {
-        stopZoom();
-    }
-    
-    if(args.key>='0' && args.key <= '9') {
-        int num = args.key-48;
-        if( bMemorySetMode )
-            memorySet(num);
-        else
-            memoryRecall(num);
-    }
     if(args.key=='p') {
-        getPosition();
+        ofLogNotice("ofxVaddio") << "Starting query";
+        bQueryInProgress=true;
+        queryZoom = -1;
+        queryPos.error = true;
+        nextQuery = ofGetElapsedTimef();
     }
-    if(args.key=='z') {
-        getZoom();
-    }
-
+    keyIsDown[args.key]=true;
 }
 
 // ----------------------------------
 void ofxVaddio::keyReleased(ofKeyEventArgs& args) {
-
-    if(args.key==OF_KEY_SHIFT) {
-        bShiftDown=false;
+    keyIsDown[args.key]=false;
+    
+    if(args.key==OF_KEY_LEFT || args.key==OF_KEY_RIGHT || args.key==OF_KEY_UP || args.key==OF_KEY_DOWN) {
+        stopPanTilt();
     }
-    if(args.key==OF_KEY_COMMAND) {
-        bCommandDown=false;
+    if(args.key==']' || args.key=='[') {
+         stopZoom();
     }
 }
 

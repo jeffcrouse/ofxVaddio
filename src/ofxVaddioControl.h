@@ -47,8 +47,7 @@ class ofxVaddioControl
 public:
     void setup(bool keyEvents=true);
     void close();
-    vector<int> command(vector<int> packet);
-    
+
     // Keyboard Events
     void enableKeyEvents() {
         ofRegisterKeyEvents(this);
@@ -77,14 +76,11 @@ public:
     void zoomDirect(float zoom, float speed);
     float zoomInq();
     
-    // Utility
-    void setPTZ(float pan, float tilt, float zoom) {
-        
-    }
-    
-    
+
 protected:
     
+    void write(vector<int> packet);
+    vector<int> read();
     bool keyDown[255];
     ofSerial serial;
 };

@@ -23,8 +23,9 @@ void ofxVaddioControl::close(){
     serial.close();
 }
 
+
 // --------------------------------------------
-vector<int> ofxVaddioControl::command(vector<int> packet) {
+void ofxVaddioControl::write(vector<int> packet) {
     serial.flush();
     stringstream out;
     
@@ -36,9 +37,13 @@ vector<int> ofxVaddioControl::command(vector<int> packet) {
     ofLogVerbose("ofxVaddioControl >") << out.str();
     
     serial.drain();
-    stringstream in;
-    
+}
+
+// --------------------------------------------
+vector<int> ofxVaddioControl::read() {
     vector<int> response;
+    
+    stringstream in;
     int ch;
     do {
         if(serial.available()) {
@@ -61,7 +66,7 @@ void ofxVaddioControl::home() {
     home.push_back(0x06);
     home.push_back(0x04);
     home.push_back(0xFF);
-    command(home);
+    write(home);
 }
 
 // --------------------------------------------------------
@@ -77,7 +82,7 @@ void ofxVaddioControl::pantiltLeft(float panSpeed, float tiltSpeed) {
     pantilt_left.push_back(0x01);
     pantilt_left.push_back(0x03);
     pantilt_left.push_back(0xFF);
-    command(pantilt_left);
+    write(pantilt_left);
 }
 
 // --------------------------------------------------------
@@ -94,7 +99,7 @@ void ofxVaddioControl::pantiltRight(float panSpeed, float tiltSpeed) {
     pantilt_right.push_back(0x02);
     pantilt_right.push_back(0x03);
     pantilt_right.push_back(0xFF);
-    command(pantilt_right);
+    write(pantilt_right);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltUp(float panSpeed, float tiltSpeed) {
@@ -110,7 +115,7 @@ void ofxVaddioControl::pantiltUp(float panSpeed, float tiltSpeed) {
     pantilt_up.push_back(0x03);
     pantilt_up.push_back(0x01);
     pantilt_up.push_back(0xFF);
-    command(pantilt_up);
+    write(pantilt_up);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltDown(float panSpeed, float tiltSpeed) {
@@ -126,7 +131,7 @@ void ofxVaddioControl::pantiltDown(float panSpeed, float tiltSpeed) {
     pantilt_down.push_back(0x03);
     pantilt_down.push_back(0x02);
     pantilt_down.push_back(0xFF);
-    command(pantilt_down);
+    write(pantilt_down);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltStop() {
@@ -142,7 +147,7 @@ void ofxVaddioControl::pantiltStop() {
     pantilt_stop.push_back(0x03);
     pantilt_stop.push_back(0x03);
     pantilt_stop.push_back(0xFF);
-    command(pantilt_stop);
+    write(pantilt_stop);
 }
 
 // --------------------------------------------------------
@@ -155,7 +160,8 @@ ofxVaddioPantilt ofxVaddioControl::pantiltInq() {
     pantilt_inq.push_back(0x06);
     pantilt_inq.push_back(0x12);
     pantilt_inq.push_back(0xFF);
-    vector<int> packet = command(pantilt_inq);
+    write(pantilt_inq);
+    vector<int> packet = read();
     
     ofxVaddioPantilt pt;
 
@@ -195,6 +201,7 @@ ofxVaddioPantilt ofxVaddioControl::pantiltInq() {
 
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltAbsolute(float pan, float tilt, float panSpeed, float tiltSpeed) {
+    ofLogNotice("ofxVaddioControl") << "pantiltAbsolute " << pan << " " << tilt << " " << panSpeed << " " << tiltSpeed;
     
     int _pan = ofMap(pan,
                      VADDIO_PAN_MIN_DEGREES,
@@ -228,7 +235,7 @@ void ofxVaddioControl::pantiltAbsolute(float pan, float tilt, float panSpeed, fl
     
     pantilt_absolute.push_back(0xFF);
     
-    command(pantilt_absolute);
+    write(pantilt_absolute);
 }
 
 // --------------------------------------------------------
@@ -244,7 +251,7 @@ void ofxVaddioControl::zoomIn(float speed) {
     zoom_in.push_back(0x07);
     zoom_in.push_back(0x20 | (_speed & 0x7));
     zoom_in.push_back(0xFF);
-    command(zoom_in);
+    write(zoom_in);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::zoomOut(float speed) {
@@ -259,7 +266,7 @@ void ofxVaddioControl::zoomOut(float speed) {
     zoom_out.push_back(0x07);
     zoom_out.push_back(0x30 | (_speed & 0x7));
     zoom_out.push_back(0xFF);
-    command(zoom_out);
+    write(zoom_out);
 }
 
 // --------------------------------------------------------
@@ -273,7 +280,7 @@ void ofxVaddioControl::zoomStop() {
     zoom_stop.push_back(0x07);
     zoom_stop.push_back(0x00);
     zoom_stop.push_back(0xFF);
-    command(zoom_stop);
+    write(zoom_stop);
 }
 
 // --------------------------------------------------------
@@ -296,7 +303,7 @@ void ofxVaddioControl::zoomDirect(float zoom) {
     zoom_direct.push_back((_zoom & 0x00F0) >>  4);
     zoom_direct.push_back((_zoom & 0x000F));
     zoom_direct.push_back(0xFF);
-    command(zoom_direct);
+    write(zoom_direct);
 }
 
 // --------------------------------------------------------
@@ -324,7 +331,7 @@ void ofxVaddioControl::zoomDirect(float zoom, float speed) {
     zoom_direct.push_back((_zoom & 0x00F0) >>  4);
     zoom_direct.push_back((_zoom & 0x000F));
     zoom_direct.push_back(0xFF);
-    command(zoom_direct);
+    write(zoom_direct);
 }
 
 // --------------------------------------------------------
@@ -337,7 +344,8 @@ float ofxVaddioControl::zoomInq() {
     zoom_inq.push_back(0x04);
     zoom_inq.push_back(0x47);
     zoom_inq.push_back(0xFF);
-    vector<int> packet = command(zoom_inq);
+    write(zoom_inq);
+    vector<int> packet = read();
 
     
     if(packet.size()!=7) {

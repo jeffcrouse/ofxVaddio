@@ -36,6 +36,7 @@
 #define VADDIO_ZOOM_SPEED_MIN 0
 #define VADDIO_ZOOM_SPEED_MAX 7
 
+#define DEFAULT_SPEED 0.5
 
 struct ofxVaddioPantilt {
     float pan;
@@ -59,24 +60,29 @@ public:
     void keyPressed(ofKeyEventArgs& args);
     
     // Pantilt Control
-    void home();
-    void pantiltLeft(float panSpeed=0.5, float tiltSpeed=0.5);
-    void pantiltRight(float panSpeed=0.5, float tiltSpeed=0.5);
-    void pantiltUp(float panSpeed=0.5, float tiltSpeed=0.5);
-    void pantiltDown(float panSpeed=0.5, float tiltSpeed=0.5);
+    void pantiltLeft(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
+    void pantiltRight(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
+    void pantiltUp(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
+    void pantiltDown(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
     void pantiltStop();
-    void pantiltAbsolute(float pan, float tilt, float panSpeed=0.5, float tiltSpeed=0.5);
+    void pantiltAbsolute(float pan, float tilt, float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
     ofxVaddioPantilt pantiltInq();
     
+    
     // Zoom Control
-    void zoomIn(float speed=0.5);
-    void zoomOut(float speed=0.5);
+    void zoomIn(float speed=DEFAULT_SPEED);
+    void zoomOut(float speed=DEFAULT_SPEED);
     void zoomStop();
     void zoomDirect(float zoom);
     void zoomDirect(float zoom, float speed);
     float zoomInq();
     
-
+    // Other
+    void home();
+    void presetSpeed(float pan, float tilt, float zoom);
+    void hardMotorStops();
+    void softMotorStops();
+    
 protected:
     
     void write(vector<int> packet);

@@ -34,7 +34,7 @@ void ofxVaddioControl::write(vector<int> packet) {
         serial.writeByte(packet[i]);
     }
     
-    ofLogVerbose("ofxVaddioControl >") << out.str();
+    ofLogNotice("ofxVaddioControl >") << out.str();
     
     serial.drain();
 }
@@ -52,7 +52,8 @@ vector<int> ofxVaddioControl::read() {
             in << ofToHex((char)ch) << " ";
         }
     } while(ch != 0xFF);
-    ofLogVerbose("ofxVaddioControl <") << in.str();
+    
+    ofLogNotice("ofxVaddioControl <") << in.str();
     
     return response;
 }
@@ -68,6 +69,60 @@ void ofxVaddioControl::home() {
     home.push_back(0xFF);
     write(home);
 }
+
+// --------------------------------------------------------
+// 81 01 7E 01 0B WW VV ZZ FF
+void ofxVaddioControl::presetSpeed(float pan, float tilt, float zoom) {
+    ofLogNotice("ofxVaddioControl") << "presetSpeed";
+    
+    vector<int> preset_speed;
+    preset_speed.push_back(0x81);
+    preset_speed.push_back(0x01);
+    preset_speed.push_back(0x7E);
+    preset_speed.push_back(0x01);
+    preset_speed.push_back(0x0B);
+    preset_speed.push_back(ofMap(pan, 0, 1, VADDIO_PAN_SPEED_MIN, VADDIO_PAN_SPEED_MAX, true));
+    preset_speed.push_back(ofMap(tilt, 0, 1, VADDIO_TILT_SPEED_MIN, VADDIO_TILT_SPEED_MAX, true));
+    preset_speed.push_back(ofMap(zoom, 0, 1, VADDIO_ZOOM_SPEED_MIN, VADDIO_ZOOM_SPEED_MAX, true));
+    preset_speed.push_back(0xFF);
+    write(preset_speed);
+}
+
+
+// --------------------------------------------------------
+// 81 01 7E 01 70 00 00 FF
+void ofxVaddioControl::hardMotorStops() {
+    ofLogNotice("ofxVaddioControl") << "hardMotorStops";
+    
+    vector<int> hard_motor_stops;
+    hard_motor_stops.push_back(0x81);
+    hard_motor_stops.push_back(0x01);
+    hard_motor_stops.push_back(0x7E);
+    hard_motor_stops.push_back(0x01);
+    hard_motor_stops.push_back(0x70);
+    hard_motor_stops.push_back(0x00);
+    hard_motor_stops.push_back(0x00);
+    hard_motor_stops.push_back(0xFF);
+    write(hard_motor_stops);
+}
+
+// --------------------------------------------------------
+// 81 01 7E 01 70 00 01 FF
+void ofxVaddioControl::softMotorStops() {
+    ofLogNotice("ofxVaddioControl") << "softMotorStops";
+    
+    vector<int> soft_motor_stops;
+    soft_motor_stops.push_back(0x81);
+    soft_motor_stops.push_back(0x01);
+    soft_motor_stops.push_back(0x7E);
+    soft_motor_stops.push_back(0x01);
+    soft_motor_stops.push_back(0x70);
+    soft_motor_stops.push_back(0x00);
+    soft_motor_stops.push_back(0x01);
+    soft_motor_stops.push_back(0xFF);
+    write(soft_motor_stops);
+}
+
 
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltLeft(float panSpeed, float tiltSpeed) {
@@ -219,8 +274,8 @@ void ofxVaddioControl::pantiltAbsolute(float pan, float tilt, float panSpeed, fl
     pantilt_absolute.push_back(0x01);
     pantilt_absolute.push_back(0x06);
     pantilt_absolute.push_back(0x02);
-    pantilt_absolute.push_back(ofMap(panSpeed, 0, 1, VADDIO_PAN_SPEED_MIN, VADDIO_PAN_SPEED_MAX, true));
-    pantilt_absolute.push_back(ofMap(tiltSpeed, 0, 1, VADDIO_TILT_SPEED_MIN, VADDIO_TILT_SPEED_MAX, true));
+    pantilt_absolute.push_back(ofMap(panSpeed, 0.0, 1.0, VADDIO_PAN_SPEED_MIN, VADDIO_PAN_SPEED_MAX, true));
+    pantilt_absolute.push_back(ofMap(tiltSpeed, 0.0, 1.0, VADDIO_TILT_SPEED_MIN, VADDIO_TILT_SPEED_MAX, true));
     
     // Lifted from  VISCA_set_pantilt_absolute_position
     pantilt_absolute.push_back((_pan & 0x0f000) >> 12);

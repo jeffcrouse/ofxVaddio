@@ -8,6 +8,7 @@
 
 #pragma once
 #include "ofMain.h"
+#include "ofxHotKeys.h"
 
 #define VADDIO_TILT_MIN -5999
 #define VADDIO_TILT_MAX 19499
@@ -36,6 +37,10 @@
 #define VADDIO_ZOOM_SPEED_MIN 0
 #define VADDIO_ZOOM_SPEED_MAX 7
 
+
+#define VADDIO_FOCUS_MIN 0x000
+#define VADDIO_FOCUS_MAX 0x0C000
+
 #define DEFAULT_SPEED 0.5
 
 struct ofxVaddioPantilt {
@@ -52,12 +57,18 @@ public:
     // Keyboard Events
     void enableKeyEvents() {
         ofRegisterKeyEvents(this);
+        ptKeyboardEventInProgress=false;
+        zoomKeyboardEventInProgress=false;
+        focusKeyboardEventInProgress=false;
     }
     void disableKeyEvents(){
         ofUnregisterKeyEvents(this);
     }
     void keyReleased(ofKeyEventArgs& args);
     void keyPressed(ofKeyEventArgs& args);
+    bool ptKeyboardEventInProgress;
+    bool zoomKeyboardEventInProgress;
+    bool focusKeyboardEventInProgress;
     
     // Pantilt Control
     void pantiltLeft(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);
@@ -76,6 +87,15 @@ public:
     void zoomDirect(float zoom);
     void zoomDirect(float zoom, float speed);
     float zoomInq();
+    
+    // Focus
+    void focusAuto();
+    void focusManual();
+    void focusDirect(float focus);
+    void focusFar();
+    void focusNear();
+    void focusStop();
+    float focusInq();
     
     // Other
     void home();

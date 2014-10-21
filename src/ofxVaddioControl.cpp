@@ -421,6 +421,130 @@ float ofxVaddioControl::zoomInq() {
     }
 }
 
+
+// --------------------------------------------------------
+// 81 01 04 38 02 FF
+void ofxVaddioControl::focusAuto(){
+    ofLogNotice("ofxVaddioControl") << "focusAuto";
+    
+    vector<int> focus_auto;
+    focus_auto.push_back(0x81);
+    focus_auto.push_back(0x01);
+    focus_auto.push_back(0x04);
+    focus_auto.push_back(0x38);
+    focus_auto.push_back(0x02);
+    focus_auto.push_back(0xFF);
+    write(focus_auto);
+}
+
+// --------------------------------------------------------
+// 81 01 04 38 03 FF
+void ofxVaddioControl::focusManual(){
+    ofLogNotice("ofxVaddioControl") << "focusManual";
+    
+    vector<int> focus_manual;
+    focus_manual.push_back(0x81);
+    focus_manual.push_back(0x01);
+    focus_manual.push_back(0x04);
+    focus_manual.push_back(0x38);
+    focus_manual.push_back(0x03);
+    focus_manual.push_back(0xFF);
+    write(focus_manual);
+}
+
+// --------------------------------------------------------
+// 81 01 04 48 0p 0q 0r 0s FF
+void ofxVaddioControl::focusDirect(float focus){
+    ofLogNotice("ofxVaddioControl") << "focusDirect";
+    
+    int _focus = ofMap(focus, 0, 1, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX);
+    
+    vector<int> focus_direct;
+    focus_direct.push_back(0x81);
+    focus_direct.push_back(0x01);
+    focus_direct.push_back(0x04);
+    focus_direct.push_back(0x48);
+    focus_direct.push_back((_focus & 0xF000) >> 12);
+    focus_direct.push_back((_focus & 0x0F00) >>  8);
+    focus_direct.push_back((_focus & 0x00F0) >>  4);
+    focus_direct.push_back((_focus & 0x000F));
+    focus_direct.push_back(0xFF);
+    write(focus_direct);
+}
+
+// --------------------------------------------------------
+// 81 01 04 08 02 FF
+void ofxVaddioControl::focusFar(){
+    ofLogNotice("ofxVaddioControl") << "focusFar";
+    
+    vector<int> focus_far;
+    focus_far.push_back(0x81);
+    focus_far.push_back(0x01);
+    focus_far.push_back(0x04);
+    focus_far.push_back(0x08);
+    focus_far.push_back(0x02);
+    focus_far.push_back(0xFF);
+    write(focus_far);
+}
+
+// --------------------------------------------------------
+// 81 01 04 08 03 FF
+void ofxVaddioControl::focusNear(){
+    ofLogNotice("ofxVaddioControl") << "focusNear";
+    
+    vector<int> focus_near;
+    focus_near.push_back(0x81);
+    focus_near.push_back(0x01);
+    focus_near.push_back(0x04);
+    focus_near.push_back(0x08);
+    focus_near.push_back(0x03);
+    focus_near.push_back(0xFF);
+    write(focus_near);
+}
+
+// --------------------------------------------------------
+// 81 01 04 08 00 FF
+void ofxVaddioControl::focusStop(){
+    ofLogNotice("ofxVaddioControl") << "focusStop";
+    
+    vector<int> focus_stop;
+    focus_stop.push_back(0x81);
+    focus_stop.push_back(0x01);
+    focus_stop.push_back(0x04);
+    focus_stop.push_back(0x08);
+    focus_stop.push_back(0x00);
+    focus_stop.push_back(0xFF);
+    write(focus_stop);
+}
+
+// --------------------------------------------------------
+// 81 09 04 48 FF
+float ofxVaddioControl::focusInq(){
+    ofLogNotice("ofxVaddioControl") << "focusInq";
+
+    vector<int> focus_inq;
+    focus_inq.push_back(0x81);
+    focus_inq.push_back(0x09);
+    focus_inq.push_back(0x04);
+    focus_inq.push_back(0x48);
+    focus_inq.push_back(0xFF);
+    write(focus_inq);
+    vector<int> packet = read();
+    
+    if(packet.size()!=7) {
+        ofLogWarning("ofxVaddioControl") << "bad response from focusInq";
+        return -1;
+    } else {
+        int focus =  (packet[2] << 12) +
+                    (packet[3] <<  8) +
+                    (packet[4] <<  4) +
+                    (packet[5]);
+        return ofMap(focus, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX, 0, 1);
+    }
+}
+
+
+
 // --------------------------------------------------------
 void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     if(keyDown[args.key]) return;
@@ -428,37 +552,74 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     if(args.key==OF_KEY_ESC) {
         home();
     }
-    if(args.key==OF_KEY_LEFT) {
+    
+    //
+    // PANTILT
+    //
+    if(args.key==OF_KEY_LEFT && !ofGetModifierShiftPressed()) {
         pantiltLeft();
+        ptKeyboardEventInProgress=true;
     }
-    if(args.key==OF_KEY_RIGHT) {
+    if(args.key==OF_KEY_RIGHT && !ofGetModifierShiftPressed()) {
         pantiltRight();
+        ptKeyboardEventInProgress=true;
     }
-    if(args.key==OF_KEY_UP) {
+    if(args.key==OF_KEY_UP && !ofGetModifierShiftPressed()) {
         pantiltUp();
+        ptKeyboardEventInProgress=true;
     }
-    if(args.key==OF_KEY_DOWN) {
+    if(args.key==OF_KEY_DOWN && !ofGetModifierShiftPressed()) {
         pantiltDown();
+        ptKeyboardEventInProgress=true;
     }
-    if(args.key=='[') {
+    
+    //
+    // ZOOM
+    //
+    if(args.key==OF_KEY_DOWN && ofGetModifierShiftPressed()) {
         zoomOut();
+        zoomKeyboardEventInProgress=true;
     }
-    if(args.key==']') {
+    if(args.key==OF_KEY_UP && ofGetModifierShiftPressed()) {
         zoomIn();
+        zoomKeyboardEventInProgress=true;
     }
 
+    
+    //
+    // FOCUS
+    //
+    if(args.key==OF_KEY_RIGHT && ofGetModifierShiftPressed()) {
+        focusFar();
+        focusKeyboardEventInProgress=true;
+    }
+    if(args.key==OF_KEY_LEFT && ofGetModifierShiftPressed()) {
+        focusNear();
+        focusKeyboardEventInProgress=true;
+    }
     keyDown[args.key]=true;
 }
 
 // ----------------------------------------------------------
 void ofxVaddioControl::keyReleased(ofKeyEventArgs& args) {
-    if(args.key==OF_KEY_LEFT || args.key==OF_KEY_RIGHT ||
-       args.key==OF_KEY_UP || args.key==OF_KEY_DOWN) {
-        pantiltStop();
-    }
-    if(args.key=='[' || args.key==']') {
-        zoomStop();
-    }
     
+    if((args.key==OF_KEY_LEFT ||
+        args.key==OF_KEY_RIGHT ||
+        args.key==OF_KEY_UP ||
+        args.key==OF_KEY_DOWN) &&
+       ptKeyboardEventInProgress) {
+        pantiltStop();
+        ptKeyboardEventInProgress=false;
+    }
+    if((args.key==OF_KEY_DOWN || args.key==OF_KEY_UP)
+       && zoomKeyboardEventInProgress) {
+        zoomStop();
+        zoomKeyboardEventInProgress=false;
+    }
+    if((args.key==OF_KEY_RIGHT || args.key==OF_KEY_LEFT)
+       && focusKeyboardEventInProgress) {
+        focusStop();
+        focusKeyboardEventInProgress=false;
+    }
     keyDown[args.key]=false;
 }

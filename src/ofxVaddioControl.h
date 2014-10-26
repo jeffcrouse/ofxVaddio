@@ -69,6 +69,10 @@ public:
     bool ptKeyboardEventInProgress;
     bool zoomKeyboardEventInProgress;
     bool focusKeyboardEventInProgress;
+    ofParameter<float> panSpeed;
+    ofParameter<float> tiltSpeed;
+    ofParameter<float> zoomSpeed;
+    
     
     // Pantilt Control
     void pantiltLeft(float panSpeed=DEFAULT_SPEED, float tiltSpeed=DEFAULT_SPEED);

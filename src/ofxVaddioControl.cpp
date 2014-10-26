@@ -34,7 +34,7 @@ void ofxVaddioControl::write(vector<int> packet) {
         serial.writeByte(packet[i]);
     }
     
-    ofLogNotice("ofxVaddioControl >") << out.str();
+    ofLogVerbose("ofxVaddioControl >") << out.str();
     
     serial.drain();
 }
@@ -53,7 +53,7 @@ vector<int> ofxVaddioControl::read() {
         }
     } while(ch != 0xFF);
     
-    ofLogNotice("ofxVaddioControl <") << in.str();
+    ofLogVerbose("ofxVaddioControl <") << in.str();
     
     return response;
 }
@@ -341,7 +341,7 @@ void ofxVaddioControl::zoomStop() {
 // --------------------------------------------------------
 // 81 01 04 47 0p 0q 0r 0s FF
 void ofxVaddioControl::zoomDirect(float zoom) {
-    ofLogNotice("ofxVaddioControl") << "zoomDirect";
+    ofLogNotice("ofxVaddioControl") << "zoomDirect " << zoom;
     
     int _zoom = ofMap(zoom,
                       VADDIO_ZOOM_MIN_X,
@@ -455,7 +455,7 @@ void ofxVaddioControl::focusManual(){
 // --------------------------------------------------------
 // 81 01 04 48 0p 0q 0r 0s FF
 void ofxVaddioControl::focusDirect(float focus){
-    ofLogNotice("ofxVaddioControl") << "focusDirect";
+    ofLogNotice("ofxVaddioControl") << "focusDirect " << focus;
     
     int _focus = ofMap(focus, 0, 1, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX);
     
@@ -557,19 +557,19 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     // PANTILT
     //
     if(args.key==OF_KEY_LEFT && !ofGetModifierShiftPressed()) {
-        pantiltLeft();
+        pantiltLeft(panSpeed, tiltSpeed);
         ptKeyboardEventInProgress=true;
     }
     if(args.key==OF_KEY_RIGHT && !ofGetModifierShiftPressed()) {
-        pantiltRight();
+        pantiltRight(panSpeed, tiltSpeed);
         ptKeyboardEventInProgress=true;
     }
     if(args.key==OF_KEY_UP && !ofGetModifierShiftPressed()) {
-        pantiltUp();
+        pantiltUp(panSpeed, tiltSpeed);
         ptKeyboardEventInProgress=true;
     }
     if(args.key==OF_KEY_DOWN && !ofGetModifierShiftPressed()) {
-        pantiltDown();
+        pantiltDown(panSpeed, tiltSpeed);
         ptKeyboardEventInProgress=true;
     }
     
@@ -577,11 +577,11 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     // ZOOM
     //
     if(args.key==OF_KEY_DOWN && ofGetModifierShiftPressed()) {
-        zoomOut();
+        zoomOut(zoomSpeed);
         zoomKeyboardEventInProgress=true;
     }
     if(args.key==OF_KEY_UP && ofGetModifierShiftPressed()) {
-        zoomIn();
+        zoomIn(zoomSpeed);
         zoomKeyboardEventInProgress=true;
     }
 
@@ -589,11 +589,11 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     //
     // FOCUS
     //
-    if(args.key==OF_KEY_RIGHT && ofGetModifierShiftPressed()) {
+    if(args.key==']') {
         focusFar();
         focusKeyboardEventInProgress=true;
     }
-    if(args.key==OF_KEY_LEFT && ofGetModifierShiftPressed()) {
+    if(args.key=='[') {
         focusNear();
         focusKeyboardEventInProgress=true;
     }
@@ -616,7 +616,7 @@ void ofxVaddioControl::keyReleased(ofKeyEventArgs& args) {
         zoomStop();
         zoomKeyboardEventInProgress=false;
     }
-    if((args.key==OF_KEY_RIGHT || args.key==OF_KEY_LEFT)
+    if((args.key=='[' || args.key==']')
        && focusKeyboardEventInProgress) {
         focusStop();
         focusKeyboardEventInProgress=false;

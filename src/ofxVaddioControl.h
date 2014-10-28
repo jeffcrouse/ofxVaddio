@@ -9,6 +9,7 @@
 #pragma once
 #include "ofMain.h"
 #include "ofxHotKeys.h"
+//#include "ofxSerial.h"
 
 #define VADDIO_TILT_MIN -5999
 #define VADDIO_TILT_MAX 19499
@@ -43,17 +44,21 @@
 
 #define DEFAULT_SPEED 0.5
 
+typedef vector<int> packet;
+
 struct ofxVaddioPantilt {
     float pan;
     float tilt;
+    bool error;
 };
 
-class ofxVaddioControl
+class ofxVaddioControl : public ofThread
 {
 public:
     void setup(bool keyEvents=true);
+    void threadedFunction();
     void close();
-
+    
     // Keyboard Events
     void enableKeyEvents() {
         ofRegisterKeyEvents(this);
@@ -108,10 +113,12 @@ public:
     void softMotorStops();
     
 protected:
-    
-    void write(vector<int> packet);
-    vector<int> read();
+    void addToQueue(packet cmd);
+    void write(packet cmd);
+    packet read();
     bool keyDown[255];
     ofSerial serial;
+    vector< packet > queue;
+    //ofx::IO::SerialDevice device;
 };
 

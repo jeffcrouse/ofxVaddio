@@ -12,6 +12,8 @@
 // --------------------------------------------
 void ofxVaddioControl::setup(bool keyEvents){
     serial.setup(0, 9600);
+    startThread();
+
     if(keyEvents) {
         enableKeyEvents();
     }
@@ -19,31 +21,24 @@ void ofxVaddioControl::setup(bool keyEvents){
 }
 
 // --------------------------------------------
-void ofxVaddioControl::close(){
-    serial.close();
-}
-
-
-// --------------------------------------------
-void ofxVaddioControl::write(vector<int> packet) {
-    serial.flush();
+void ofxVaddioControl::write(packet p) {
     stringstream out;
     
-    for(int i=0; i<packet.size(); i++) {
-        out << ofToHex((char)packet[i]) << " ";
-        serial.writeByte(packet[i]);
+    for(int i=0; i<p.size(); i++) {
+        out << ofToHex((char)p[i]) << " ";
+        serial.writeByte(p[i]);
     }
     
-    ofLogVerbose("ofxVaddioControl >") << out.str();
-    
     serial.drain();
+    ofLogVerbose("ofxVaddioControl >") << out.str();
 }
 
 // --------------------------------------------
-vector<int> ofxVaddioControl::read() {
-    vector<int> response;
+packet ofxVaddioControl::read() {
     
+    packet response;
     stringstream in;
+    float timeout = ofGetElapsedTimef() + 5;
     int ch;
     do {
         if(serial.available()) {
@@ -51,23 +46,64 @@ vector<int> ofxVaddioControl::read() {
             response.push_back(ch);
             in << ofToHex((char)ch) << " ";
         }
-    } while(ch != 0xFF);
+    } while(ch != 0xFF && ofGetElapsedTimef()<timeout);
     
     ofLogVerbose("ofxVaddioControl <") << in.str();
-    
     return response;
+}
+
+// --------------------------------------------
+void ofxVaddioControl::threadedFunction()
+{
+    while(isThreadRunning())
+    {
+        if(lock())
+        {
+            if(queue.size()>0) {
+                packet cmd = queue[0];
+                queue.erase(queue.begin());
+                unlock();
+                
+                write(cmd);
+                read();
+            } else {
+                unlock();
+                sleep(100);
+            }
+        }
+        else
+        {
+            ofLogWarning("threadedFunction()") << "Unable to lock mutex.";
+        }
+    }
+}
+
+// --------------------------------------------
+void ofxVaddioControl::addToQueue(packet cmd) {
+    if(lock()) {
+        queue.push_back(cmd);
+        unlock();
+    }
+}
+
+// --------------------------------------------
+void ofxVaddioControl::close(){
+    serial.close();
+    stopThread();
 }
 
 // --------------------------------------------------------
 void ofxVaddioControl::home() {
     ofLogNotice("ofxVaddioControl") << "home";
+
     vector<int> home;
     home.push_back(0x81);
     home.push_back(0x01);
     home.push_back(0x06);
     home.push_back(0x04);
     home.push_back(0xFF);
-    write(home);
+    
+    addToQueue(home);
 }
 
 // --------------------------------------------------------
@@ -85,7 +121,8 @@ void ofxVaddioControl::presetSpeed(float pan, float tilt, float zoom) {
     preset_speed.push_back(ofMap(tilt, 0, 1, VADDIO_TILT_SPEED_MIN, VADDIO_TILT_SPEED_MAX, true));
     preset_speed.push_back(ofMap(zoom, 0, 1, VADDIO_ZOOM_SPEED_MIN, VADDIO_ZOOM_SPEED_MAX, true));
     preset_speed.push_back(0xFF);
-    write(preset_speed);
+
+    addToQueue(preset_speed);
 }
 
 
@@ -103,7 +140,9 @@ void ofxVaddioControl::hardMotorStops() {
     hard_motor_stops.push_back(0x00);
     hard_motor_stops.push_back(0x00);
     hard_motor_stops.push_back(0xFF);
-    write(hard_motor_stops);
+
+    addToQueue(hard_motor_stops);
+
 }
 
 // --------------------------------------------------------
@@ -120,14 +159,15 @@ void ofxVaddioControl::softMotorStops() {
     soft_motor_stops.push_back(0x00);
     soft_motor_stops.push_back(0x01);
     soft_motor_stops.push_back(0xFF);
-    write(soft_motor_stops);
+    
+    addToQueue(soft_motor_stops);
 }
 
 
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltLeft(float panSpeed, float tiltSpeed) {
     ofLogNotice("ofxVaddioControl") << "pantiltLeft";
-    vector<int> pantilt_left;
+    packet pantilt_left;
     pantilt_left.push_back(0x81);
     pantilt_left.push_back(0x01);
     pantilt_left.push_back(0x06);
@@ -137,14 +177,16 @@ void ofxVaddioControl::pantiltLeft(float panSpeed, float tiltSpeed) {
     pantilt_left.push_back(0x01);
     pantilt_left.push_back(0x03);
     pantilt_left.push_back(0xFF);
-    write(pantilt_left);
+    
+
+    addToQueue(pantilt_left);
 }
 
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltRight(float panSpeed, float tiltSpeed) {
     ofLogNotice("ofxVaddioControl") << "pantiltRight";
     
-    vector<int> pantilt_right;
+    packet pantilt_right;
     pantilt_right.push_back(0x81);
     pantilt_right.push_back(0x01);
     pantilt_right.push_back(0x06);
@@ -154,13 +196,14 @@ void ofxVaddioControl::pantiltRight(float panSpeed, float tiltSpeed) {
     pantilt_right.push_back(0x02);
     pantilt_right.push_back(0x03);
     pantilt_right.push_back(0xFF);
-    write(pantilt_right);
+
+    addToQueue(pantilt_right);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltUp(float panSpeed, float tiltSpeed) {
     ofLogNotice("ofxVaddioControl") << "pantiltUp";
     
-    vector<int> pantilt_up;
+    packet pantilt_up;
     pantilt_up.push_back(0x81);
     pantilt_up.push_back(0x01);
     pantilt_up.push_back(0x06);
@@ -170,13 +213,14 @@ void ofxVaddioControl::pantiltUp(float panSpeed, float tiltSpeed) {
     pantilt_up.push_back(0x03);
     pantilt_up.push_back(0x01);
     pantilt_up.push_back(0xFF);
-    write(pantilt_up);
+
+    addToQueue(pantilt_up);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltDown(float panSpeed, float tiltSpeed) {
     ofLogNotice("ofxVaddioControl") << "pantiltDown";
     
-    vector<int> pantilt_down;
+    packet pantilt_down;
     pantilt_down.push_back(0x81);
     pantilt_down.push_back(0x01);
     pantilt_down.push_back(0x06);
@@ -186,13 +230,14 @@ void ofxVaddioControl::pantiltDown(float panSpeed, float tiltSpeed) {
     pantilt_down.push_back(0x03);
     pantilt_down.push_back(0x02);
     pantilt_down.push_back(0xFF);
-    write(pantilt_down);
+    
+    addToQueue(pantilt_down);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::pantiltStop() {
     ofLogNotice("ofxVaddioControl") << "pantiltStop";
     
-    vector<int> pantilt_stop;
+    packet pantilt_stop;
     pantilt_stop.push_back(0x81);
     pantilt_stop.push_back(0x01);
     pantilt_stop.push_back(0x06);
@@ -202,56 +247,66 @@ void ofxVaddioControl::pantiltStop() {
     pantilt_stop.push_back(0x03);
     pantilt_stop.push_back(0x03);
     pantilt_stop.push_back(0xFF);
-    write(pantilt_stop);
+
+    addToQueue(pantilt_stop);
 }
 
 // --------------------------------------------------------
 ofxVaddioPantilt ofxVaddioControl::pantiltInq() {
     ofLogNotice("ofxVaddioControl") << "pantiltInq";
-    
-    vector<int> pantilt_inq;
-    pantilt_inq.push_back(0x81);
-    pantilt_inq.push_back(0x09);
-    pantilt_inq.push_back(0x06);
-    pantilt_inq.push_back(0x12);
-    pantilt_inq.push_back(0xFF);
-    write(pantilt_inq);
-    vector<int> packet = read();
-    
     ofxVaddioPantilt pt;
 
-    if(packet.size()<11)  {
-        ofLogWarning() << "Bad response from pantiltInq";
-        return pt;
-    } else {
+    if(lock()) {
         
-        int _pan =   ((packet[2] & 0xf) << 12) +
-            ((packet[3] & 0xf) <<  8) +
-            ((packet[4] & 0xf) <<  4) +
-            (packet[5] & 0xf);
+        serial.flush(true, false);
         
-        int _tilt =  ((packet[6] & 0xf) << 12) +
-            ((packet[7] & 0xf) <<  8) +
-            ((packet[8] & 0xf) <<  4) +
-            (packet[9] & 0xf);
+        packet pantilt_inq;
+        pantilt_inq.push_back(0x81);
+        pantilt_inq.push_back(0x09);
+        pantilt_inq.push_back(0x06);
+        pantilt_inq.push_back(0x12);
+        pantilt_inq.push_back(0xFF);
+        write(pantilt_inq);
+        packet response = read();
+        unlock();
         
-        if (_pan > 0x8000) _pan -= 0x10000;
-        if (_tilt > 0x8000) _tilt -= 0x10000;
-        
-        
-        pt.pan = ofMap(_pan,
-                          VADDIO_PAN_MIN,
-                          VADDIO_PAN_MAX,
-                          VADDIO_PAN_MIN_DEGREES,
-                          VADDIO_PAN_MAX_DEGREES );
-        pt.tilt = ofMap(_tilt,
-                           VADDIO_TILT_MIN,
-                           VADDIO_TILT_MAX,
-                           VADDIO_TILT_MIN_DEGREES,
-                           VADDIO_TILT_MAX_DEGREES );
-        
-        return pt;
+        if(response.size()!=11)  {
+            pt.error= true;
+            ofLogWarning() << "Bad response from pantiltInq";
+            return pt;
+        } else {
+            
+            int _pan =   ((response[2] & 0xf) << 12) +
+                ((response[3] & 0xf) <<  8) +
+                ((response[4] & 0xf) <<  4) +
+                (response[5] & 0xf);
+            
+            int _tilt =  ((response[6] & 0xf) << 12) +
+                ((response[7] & 0xf) <<  8) +
+                ((response[8] & 0xf) <<  4) +
+                (response[9] & 0xf);
+            
+            if (_pan > 0x8000) _pan -= 0x10000;
+            if (_tilt > 0x8000) _tilt -= 0x10000;
+            
+            pt.error = false;
+            
+            pt.pan = ofMap(_pan,
+                              VADDIO_PAN_MIN,
+                              VADDIO_PAN_MAX,
+                              VADDIO_PAN_MIN_DEGREES,
+                              VADDIO_PAN_MAX_DEGREES );
+            pt.tilt = ofMap(_tilt,
+                               VADDIO_TILT_MIN,
+                               VADDIO_TILT_MAX,
+                               VADDIO_TILT_MIN_DEGREES,
+                               VADDIO_TILT_MAX_DEGREES );
+            
+            return pt;
+        }
     }
+    pt.error = true;
+    return pt;
 }
 
 // --------------------------------------------------------
@@ -269,7 +324,7 @@ void ofxVaddioControl::pantiltAbsolute(float pan, float tilt, float panSpeed, fl
                       VADDIO_TILT_MIN,
                       VADDIO_TILT_MAX);
     
-    vector<int> pantilt_absolute;
+    packet pantilt_absolute;
     pantilt_absolute.push_back(0x81);
     pantilt_absolute.push_back(0x01);
     pantilt_absolute.push_back(0x06);
@@ -290,7 +345,7 @@ void ofxVaddioControl::pantiltAbsolute(float pan, float tilt, float panSpeed, fl
     
     pantilt_absolute.push_back(0xFF);
     
-    write(pantilt_absolute);
+    addToQueue(pantilt_absolute);
 }
 
 // --------------------------------------------------------
@@ -299,14 +354,15 @@ void ofxVaddioControl::zoomIn(float speed) {
     
     int _speed = ofMap(speed, 0, 1, VADDIO_ZOOM_SPEED_MIN, VADDIO_ZOOM_SPEED_MAX, true);
     
-    vector<int> zoom_in;
+    packet zoom_in;
     zoom_in.push_back(0x81);
     zoom_in.push_back(0x01);
     zoom_in.push_back(0x04);
     zoom_in.push_back(0x07);
     zoom_in.push_back(0x20 | (_speed & 0x7));
     zoom_in.push_back(0xFF);
-    write(zoom_in);
+    
+    addToQueue(zoom_in);
 }
 // --------------------------------------------------------
 void ofxVaddioControl::zoomOut(float speed) {
@@ -314,28 +370,30 @@ void ofxVaddioControl::zoomOut(float speed) {
     
     int _speed = ofMap(speed, 0, 1, VADDIO_ZOOM_SPEED_MIN, VADDIO_ZOOM_SPEED_MAX, true);
     
-    vector<int> zoom_out;
+    packet zoom_out;
     zoom_out.push_back(0x81);
     zoom_out.push_back(0x01);
     zoom_out.push_back(0x04);
     zoom_out.push_back(0x07);
     zoom_out.push_back(0x30 | (_speed & 0x7));
     zoom_out.push_back(0xFF);
-    write(zoom_out);
+    
+    addToQueue(zoom_out);
 }
 
 // --------------------------------------------------------
 void ofxVaddioControl::zoomStop() {
     ofLogNotice("ofxVaddioControl") << "zoomStop";
     
-    vector<int> zoom_stop;
+    packet zoom_stop;
     zoom_stop.push_back(0x81);
     zoom_stop.push_back(0x01);
     zoom_stop.push_back(0x04);
     zoom_stop.push_back(0x07);
     zoom_stop.push_back(0x00);
     zoom_stop.push_back(0xFF);
-    write(zoom_stop);
+    
+    addToQueue(zoom_stop);
 }
 
 // --------------------------------------------------------
@@ -348,7 +406,7 @@ void ofxVaddioControl::zoomDirect(float zoom) {
                       VADDIO_ZOOM_MAX_X,
                       VADDIO_ZOOM_MIN,
                       VADDIO_ZOOM_MAX);
-    vector<int> zoom_direct;
+    packet zoom_direct;
     zoom_direct.push_back(0x81);
     zoom_direct.push_back(0x01);
     zoom_direct.push_back(0x04);
@@ -358,13 +416,15 @@ void ofxVaddioControl::zoomDirect(float zoom) {
     zoom_direct.push_back((_zoom & 0x00F0) >>  4);
     zoom_direct.push_back((_zoom & 0x000F));
     zoom_direct.push_back(0xFF);
-    write(zoom_direct);
+    
+    addToQueue(zoom_direct);
 }
 
 // --------------------------------------------------------
 // 81 01 7E 01 4A 0V 0p 0q 0r 0s FF
 void ofxVaddioControl::zoomDirect(float zoom, float speed) {
     ofLogNotice("ofxVaddioControl") << "zoomDirect";
+
     
     int _zoom = ofMap(zoom,
                      VADDIO_ZOOM_MIN_X,
@@ -374,7 +434,7 @@ void ofxVaddioControl::zoomDirect(float zoom, float speed) {
     
     int _speed = ofMap(speed, 0, 1, VADDIO_ZOOM_SPEED_MIN, VADDIO_ZOOM_SPEED_MAX, true);
     
-    vector<int> zoom_direct;
+    packet zoom_direct;
     zoom_direct.push_back(0x81);
     zoom_direct.push_back(0x01);
     zoom_direct.push_back(0x7E);
@@ -386,39 +446,47 @@ void ofxVaddioControl::zoomDirect(float zoom, float speed) {
     zoom_direct.push_back((_zoom & 0x00F0) >>  4);
     zoom_direct.push_back((_zoom & 0x000F));
     zoom_direct.push_back(0xFF);
-    write(zoom_direct);
+    
+    addToQueue(zoom_direct);
 }
 
 // --------------------------------------------------------
 float ofxVaddioControl::zoomInq() {
     ofLogNotice("ofxVaddioControl") << "zoomInq";
-    
-    vector<int> zoom_inq;
-    zoom_inq.push_back(0x81);
-    zoom_inq.push_back(0x09);
-    zoom_inq.push_back(0x04);
-    zoom_inq.push_back(0x47);
-    zoom_inq.push_back(0xFF);
-    write(zoom_inq);
-    vector<int> packet = read();
+   
+    if(lock()) {
 
-    
-    if(packet.size()!=7) {
-        ofLogWarning("ofxVaddioControl") << "bad response from zoomInq";
-        return -1;
-    } else {
+        serial.flush(true, false);
         
-        int _zoom =  (packet[2] << 12) +
-            (packet[3] <<  8) +
-            (packet[4] <<  4) +
-            (packet[5]);
-        float zoom = ofMap(_zoom,
-                           VADDIO_ZOOM_MIN,
-                           VADDIO_ZOOM_MAX,
-                           VADDIO_ZOOM_MIN_X,
-                           VADDIO_ZOOM_MAX_X);
-        return zoom;
+        packet zoom_inq;
+        zoom_inq.push_back(0x81);
+        zoom_inq.push_back(0x09);
+        zoom_inq.push_back(0x04);
+        zoom_inq.push_back(0x47);
+        zoom_inq.push_back(0xFF);
+        write(zoom_inq);
+        packet response = read();
+        unlock();
+        
+        if(response.size()!=7) {
+            ofLogWarning("ofxVaddioControl") << "bad response from zoomInq";
+            return -1;
+        } else {
+            
+            int _zoom =  (response[2] << 12) +
+                (response[3] <<  8) +
+                (response[4] <<  4) +
+                (response[5]);
+            float zoom = ofMap(_zoom,
+                               VADDIO_ZOOM_MIN,
+                               VADDIO_ZOOM_MAX,
+                               VADDIO_ZOOM_MIN_X,
+                               VADDIO_ZOOM_MAX_X);
+            return zoom;
+        }
     }
+    
+    return -1;
 }
 
 
@@ -427,14 +495,15 @@ float ofxVaddioControl::zoomInq() {
 void ofxVaddioControl::focusAuto(){
     ofLogNotice("ofxVaddioControl") << "focusAuto";
     
-    vector<int> focus_auto;
+    packet focus_auto;
     focus_auto.push_back(0x81);
     focus_auto.push_back(0x01);
     focus_auto.push_back(0x04);
     focus_auto.push_back(0x38);
     focus_auto.push_back(0x02);
     focus_auto.push_back(0xFF);
-    write(focus_auto);
+    
+    addToQueue(focus_auto);
 }
 
 // --------------------------------------------------------
@@ -442,14 +511,15 @@ void ofxVaddioControl::focusAuto(){
 void ofxVaddioControl::focusManual(){
     ofLogNotice("ofxVaddioControl") << "focusManual";
     
-    vector<int> focus_manual;
+    packet focus_manual;
     focus_manual.push_back(0x81);
     focus_manual.push_back(0x01);
     focus_manual.push_back(0x04);
     focus_manual.push_back(0x38);
     focus_manual.push_back(0x03);
     focus_manual.push_back(0xFF);
-    write(focus_manual);
+    
+    addToQueue(focus_manual);
 }
 
 // --------------------------------------------------------
@@ -459,7 +529,7 @@ void ofxVaddioControl::focusDirect(float focus){
     
     int _focus = ofMap(focus, 0, 1, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX);
     
-    vector<int> focus_direct;
+    packet focus_direct;
     focus_direct.push_back(0x81);
     focus_direct.push_back(0x01);
     focus_direct.push_back(0x04);
@@ -469,7 +539,8 @@ void ofxVaddioControl::focusDirect(float focus){
     focus_direct.push_back((_focus & 0x00F0) >>  4);
     focus_direct.push_back((_focus & 0x000F));
     focus_direct.push_back(0xFF);
-    write(focus_direct);
+    
+    addToQueue(focus_direct);
 }
 
 // --------------------------------------------------------
@@ -477,14 +548,15 @@ void ofxVaddioControl::focusDirect(float focus){
 void ofxVaddioControl::focusFar(){
     ofLogNotice("ofxVaddioControl") << "focusFar";
     
-    vector<int> focus_far;
+    packet focus_far;
     focus_far.push_back(0x81);
     focus_far.push_back(0x01);
     focus_far.push_back(0x04);
     focus_far.push_back(0x08);
     focus_far.push_back(0x02);
     focus_far.push_back(0xFF);
-    write(focus_far);
+    
+    addToQueue(focus_far);
 }
 
 // --------------------------------------------------------
@@ -499,7 +571,8 @@ void ofxVaddioControl::focusNear(){
     focus_near.push_back(0x08);
     focus_near.push_back(0x03);
     focus_near.push_back(0xFF);
-    write(focus_near);
+    
+    addToQueue(focus_near);
 }
 
 // --------------------------------------------------------
@@ -507,14 +580,15 @@ void ofxVaddioControl::focusNear(){
 void ofxVaddioControl::focusStop(){
     ofLogNotice("ofxVaddioControl") << "focusStop";
     
-    vector<int> focus_stop;
+    packet focus_stop;
     focus_stop.push_back(0x81);
     focus_stop.push_back(0x01);
     focus_stop.push_back(0x04);
     focus_stop.push_back(0x08);
     focus_stop.push_back(0x00);
     focus_stop.push_back(0xFF);
-    write(focus_stop);
+    
+    addToQueue(focus_stop);
 }
 
 // --------------------------------------------------------
@@ -522,25 +596,34 @@ void ofxVaddioControl::focusStop(){
 float ofxVaddioControl::focusInq(){
     ofLogNotice("ofxVaddioControl") << "focusInq";
 
-    vector<int> focus_inq;
-    focus_inq.push_back(0x81);
-    focus_inq.push_back(0x09);
-    focus_inq.push_back(0x04);
-    focus_inq.push_back(0x48);
-    focus_inq.push_back(0xFF);
-    write(focus_inq);
-    vector<int> packet = read();
-    
-    if(packet.size()!=7) {
-        ofLogWarning("ofxVaddioControl") << "bad response from focusInq";
-        return -1;
-    } else {
-        int focus =  (packet[2] << 12) +
-                    (packet[3] <<  8) +
-                    (packet[4] <<  4) +
-                    (packet[5]);
-        return ofMap(focus, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX, 0, 1);
+    if(lock()) {
+
+        serial.flush(true, false);
+        
+        vector<int> focus_inq;
+        focus_inq.push_back(0x81);
+        focus_inq.push_back(0x09);
+        focus_inq.push_back(0x04);
+        focus_inq.push_back(0x48);
+        focus_inq.push_back(0xFF);
+        write(focus_inq);
+        packet response = read();
+        unlock();
+        
+        
+        if(response.size()!=7) {
+            ofLogWarning("ofxVaddioControl") << "bad response from focusInq";
+            return -1;
+        } else {
+            int focus =  (response[2] << 12) +
+                        (response[3] <<  8) +
+                        (response[4] <<  4) +
+                        (response[5]);
+            return ofMap(focus, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX, 0, 1);
+        }
     }
+    
+    return -1;
 }
 
 

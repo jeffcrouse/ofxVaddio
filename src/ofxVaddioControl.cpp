@@ -24,12 +24,15 @@ void ofxVaddioControl::setup(bool keyEvents){
 void ofxVaddioControl::write(packet p) {
     stringstream out;
     
+    unsigned char buf[p.size()];
     for(int i=0; i<p.size(); i++) {
         out << ofToHex((char)p[i]) << " ";
-        serial.writeByte(p[i]);
+        buf[i] = p[i];
+        //serial.writeByte(p[i]);
     }
-    
+    serial.writeBytes(buf, p.size());
     serial.drain();
+    
     ofLogVerbose("ofxVaddioControl >") << out.str();
 }
 
@@ -41,14 +44,15 @@ packet ofxVaddioControl::read() {
     float timeout = ofGetElapsedTimef() + 5;
     int ch;
     do {
-        if(serial.available()) {
-            ch = serial.readByte();
+        ch = serial.readByte();
+        if(ch != OF_SERIAL_NO_DATA) {
             response.push_back(ch);
             in << ofToHex((char)ch) << " ";
         }
     } while(ch != 0xFF && ofGetElapsedTimef()<timeout);
     
     ofLogVerbose("ofxVaddioControl <") << in.str();
+    
     return response;
 }
 
@@ -57,23 +61,25 @@ void ofxVaddioControl::threadedFunction()
 {
     while(isThreadRunning())
     {
-        if(lock())
+        if(queue.size()>0)
         {
-            if(queue.size()>0) {
+            if(lock())
+            {
                 packet cmd = queue[0];
                 queue.erase(queue.begin());
                 unlock();
                 
                 write(cmd);
                 read();
-            } else {
-                unlock();
-                sleep(100);
+            }
+            else
+            {
+                ofLogWarning("threadedFunction()") << "Unable to lock mutex.";
             }
         }
         else
         {
-            ofLogWarning("threadedFunction()") << "Unable to lock mutex.";
+            sleep(100);
         }
     }
 }
@@ -255,58 +261,52 @@ void ofxVaddioControl::pantiltStop() {
 ofxVaddioPantilt ofxVaddioControl::pantiltInq() {
     ofLogNotice("ofxVaddioControl") << "pantiltInq";
     ofxVaddioPantilt pt;
-
-    if(lock()) {
-        
-        serial.flush(true, false);
-        
-        packet pantilt_inq;
-        pantilt_inq.push_back(0x81);
-        pantilt_inq.push_back(0x09);
-        pantilt_inq.push_back(0x06);
-        pantilt_inq.push_back(0x12);
-        pantilt_inq.push_back(0xFF);
-        write(pantilt_inq);
-        packet response = read();
-        unlock();
-        
-        if(response.size()!=11)  {
-            pt.error= true;
-            ofLogWarning() << "Bad response from pantiltInq";
-            return pt;
-        } else {
-            
-            int _pan =   ((response[2] & 0xf) << 12) +
-                ((response[3] & 0xf) <<  8) +
-                ((response[4] & 0xf) <<  4) +
-                (response[5] & 0xf);
-            
-            int _tilt =  ((response[6] & 0xf) << 12) +
-                ((response[7] & 0xf) <<  8) +
-                ((response[8] & 0xf) <<  4) +
-                (response[9] & 0xf);
-            
-            if (_pan > 0x8000) _pan -= 0x10000;
-            if (_tilt > 0x8000) _tilt -= 0x10000;
-            
-            pt.error = false;
-            
-            pt.pan = ofMap(_pan,
-                              VADDIO_PAN_MIN,
-                              VADDIO_PAN_MAX,
-                              VADDIO_PAN_MIN_DEGREES,
-                              VADDIO_PAN_MAX_DEGREES );
-            pt.tilt = ofMap(_tilt,
-                               VADDIO_TILT_MIN,
-                               VADDIO_TILT_MAX,
-                               VADDIO_TILT_MIN_DEGREES,
-                               VADDIO_TILT_MAX_DEGREES );
-            
-            return pt;
-        }
-    }
     pt.error = true;
-    return pt;
+
+    packet pantilt_inq;
+    pantilt_inq.push_back(0x81);
+    pantilt_inq.push_back(0x09);
+    pantilt_inq.push_back(0x06);
+    pantilt_inq.push_back(0x12);
+    pantilt_inq.push_back(0xFF);
+    
+    write(pantilt_inq);
+    packet response = read();
+   
+    if(response.size()!=11)  {
+        pt.error= true;
+        ofLogWarning() << "Bad response from pantiltInq";
+        return pt;
+    } else {
+        
+        int _pan =   ((response[2] & 0xf) << 12) +
+            ((response[3] & 0xf) <<  8) +
+            ((response[4] & 0xf) <<  4) +
+            (response[5] & 0xf);
+        
+        int _tilt =  ((response[6] & 0xf) << 12) +
+            ((response[7] & 0xf) <<  8) +
+            ((response[8] & 0xf) <<  4) +
+            (response[9] & 0xf);
+        
+        if (_pan > 0x8000) _pan -= 0x10000;
+        if (_tilt > 0x8000) _tilt -= 0x10000;
+        
+        pt.error = false;
+        
+        pt.pan = ofMap(_pan,
+                          VADDIO_PAN_MIN,
+                          VADDIO_PAN_MAX,
+                          VADDIO_PAN_MIN_DEGREES,
+                          VADDIO_PAN_MAX_DEGREES );
+        pt.tilt = ofMap(_tilt,
+                           VADDIO_TILT_MIN,
+                           VADDIO_TILT_MAX,
+                           VADDIO_TILT_MIN_DEGREES,
+                           VADDIO_TILT_MAX_DEGREES );
+        
+        return pt;
+    }
 }
 
 // --------------------------------------------------------
@@ -424,7 +424,6 @@ void ofxVaddioControl::zoomDirect(float zoom) {
 // 81 01 7E 01 4A 0V 0p 0q 0r 0s FF
 void ofxVaddioControl::zoomDirect(float zoom, float speed) {
     ofLogNotice("ofxVaddioControl") << "zoomDirect";
-
     
     int _zoom = ofMap(zoom,
                      VADDIO_ZOOM_MIN_X,
@@ -453,40 +452,35 @@ void ofxVaddioControl::zoomDirect(float zoom, float speed) {
 // --------------------------------------------------------
 float ofxVaddioControl::zoomInq() {
     ofLogNotice("ofxVaddioControl") << "zoomInq";
-   
-    if(lock()) {
 
-        serial.flush(true, false);
-        
-        packet zoom_inq;
-        zoom_inq.push_back(0x81);
-        zoom_inq.push_back(0x09);
-        zoom_inq.push_back(0x04);
-        zoom_inq.push_back(0x47);
-        zoom_inq.push_back(0xFF);
-        write(zoom_inq);
-        packet response = read();
-        unlock();
-        
-        if(response.size()!=7) {
-            ofLogWarning("ofxVaddioControl") << "bad response from zoomInq";
-            return -1;
-        } else {
-            
-            int _zoom =  (response[2] << 12) +
-                (response[3] <<  8) +
-                (response[4] <<  4) +
-                (response[5]);
-            float zoom = ofMap(_zoom,
-                               VADDIO_ZOOM_MIN,
-                               VADDIO_ZOOM_MAX,
-                               VADDIO_ZOOM_MIN_X,
-                               VADDIO_ZOOM_MAX_X);
-            return zoom;
-        }
-    }
+    packet zoom_inq;
+    zoom_inq.push_back(0x81);
+    zoom_inq.push_back(0x09);
+    zoom_inq.push_back(0x04);
+    zoom_inq.push_back(0x47);
+    zoom_inq.push_back(0xFF);
     
-    return -1;
+    write(zoom_inq);
+    packet response = read();
+
+    
+    if(response.size()!=7) {
+        ofLogWarning("ofxVaddioControl") << "bad response from zoomInq";
+        return -1;
+    } else {
+        
+        int _zoom =  (response[2] << 12) +
+            (response[3] <<  8) +
+            (response[4] <<  4) +
+            (response[5]);
+        float zoom = ofMap(_zoom,
+                           VADDIO_ZOOM_MIN,
+                           VADDIO_ZOOM_MAX,
+                           VADDIO_ZOOM_MIN_X,
+                           VADDIO_ZOOM_MAX_X);
+        ofLogNotice("ofxVaddioControl") << " zoom = " << zoom;
+        return zoom;
+    }
 }
 
 
@@ -596,34 +590,26 @@ void ofxVaddioControl::focusStop(){
 float ofxVaddioControl::focusInq(){
     ofLogNotice("ofxVaddioControl") << "focusInq";
 
-    if(lock()) {
+    vector<int> focus_inq;
+    focus_inq.push_back(0x81);
+    focus_inq.push_back(0x09);
+    focus_inq.push_back(0x04);
+    focus_inq.push_back(0x48);
+    focus_inq.push_back(0xFF);
 
-        serial.flush(true, false);
-        
-        vector<int> focus_inq;
-        focus_inq.push_back(0x81);
-        focus_inq.push_back(0x09);
-        focus_inq.push_back(0x04);
-        focus_inq.push_back(0x48);
-        focus_inq.push_back(0xFF);
-        write(focus_inq);
-        packet response = read();
-        unlock();
-        
-        
-        if(response.size()!=7) {
-            ofLogWarning("ofxVaddioControl") << "bad response from focusInq";
-            return -1;
-        } else {
-            int focus =  (response[2] << 12) +
-                        (response[3] <<  8) +
-                        (response[4] <<  4) +
-                        (response[5]);
-            return ofMap(focus, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX, 0, 1);
-        }
+    write(focus_inq);
+    packet response = read();
+
+    if(response.size()!=7) {
+        ofLogWarning("ofxVaddioControl") << "bad response from focusInq";
+        return -1;
+    } else {
+        int focus =  (response[2] << 12) +
+                    (response[3] <<  8) +
+                    (response[4] <<  4) +
+                    (response[5]);
+        return ofMap(focus, VADDIO_FOCUS_MIN, VADDIO_FOCUS_MAX, 0, 1);
     }
-    
-    return -1;
 }
 
 
@@ -634,6 +620,10 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     
     if(args.key==OF_KEY_ESC) {
         home();
+    }
+    
+    if(args.key=='f' && ofGetModifierShortcutKeyPressed()) {
+        serial.flush();
     }
     
     //

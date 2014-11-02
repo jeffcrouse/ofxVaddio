@@ -38,11 +38,15 @@
 #define VADDIO_ZOOM_SPEED_MIN 0
 #define VADDIO_ZOOM_SPEED_MAX 7
 
-
 #define VADDIO_FOCUS_MIN 0x000
 #define VADDIO_FOCUS_MAX 0x0C000
 
+#define VADDIO_SHUTTER_MIN 0x0
+#define VADDIO_SHUTTER_MAX 0x0F
+
 #define DEFAULT_SPEED 0.5
+
+
 
 typedef vector<int> packet;
 
@@ -105,6 +109,19 @@ public:
     void focusNear();
     void focusStop();
     float focusInq();
+    
+    // Priority
+    void priorityFullAuto();
+    void priorityManual();
+    void priorityShutter();
+    void priorityIris();
+    
+    // Shuter
+    void shutterReset();
+    void shutterUp();
+    void shutterDown();
+    void shutterDirect(float val);
+    float shutterInq();
     
     // Other
     void home();

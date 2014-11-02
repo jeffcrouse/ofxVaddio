@@ -590,7 +590,7 @@ void ofxVaddioControl::focusStop(){
 float ofxVaddioControl::focusInq(){
     ofLogNotice("ofxVaddioControl") << "focusInq";
 
-    vector<int> focus_inq;
+    packet focus_inq;
     focus_inq.push_back(0x81);
     focus_inq.push_back(0x09);
     focus_inq.push_back(0x04);
@@ -613,6 +613,165 @@ float ofxVaddioControl::focusInq(){
 }
 
 
+// --------------------------------------------------------
+// 81 01 04 39 00 FF
+void ofxVaddioControl::priorityFullAuto(){
+    ofLogNotice("ofxVaddioControl") << "priorityFullAuto";
+    
+    packet command;
+    command.push_back(0x81);
+    command.push_back(0x01);
+    command.push_back(0x04);
+    command.push_back(0x39);
+    command.push_back(0x00);
+    command.push_back(0xFF);
+    
+    addToQueue(command);
+}
+// --------------------------------------------------------
+// 81 01 04 39 03 FF
+void ofxVaddioControl::priorityManual(){
+    ofLogNotice("ofxVaddioControl") << "priorityManual";
+    
+    packet command;
+    command.push_back(0x81);
+    command.push_back(0x01);
+    command.push_back(0x04);
+    command.push_back(0x39);
+    command.push_back(0x03);
+    command.push_back(0xFF);
+    
+    addToQueue(command);
+}
+// --------------------------------------------------------
+// 81 01 04 39 0A FF
+void ofxVaddioControl::priorityShutter(){
+    ofLogNotice("ofxVaddioControl") << "priorityShutter";
+    
+    packet command;
+    command.push_back(0x81);
+    command.push_back(0x01);
+    command.push_back(0x04);
+    command.push_back(0x39);
+    command.push_back(0x0A);
+    command.push_back(0xFF);
+    
+    addToQueue(command);
+}
+// --------------------------------------------------------
+// 81 01 04 39 0B FF
+void ofxVaddioControl::priorityIris(){
+    ofLogNotice("ofxVaddioControl") << "priorityIris";
+    
+    packet command;
+    command.push_back(0x81);
+    command.push_back(0x01);
+    command.push_back(0x04);
+    command.push_back(0x39);
+    command.push_back(0x0B);
+    command.push_back(0xFF);
+    
+    addToQueue(command);
+}
+
+
+// --------------------------------------------------------
+// 81 01 04 0A 00 FF
+void ofxVaddioControl::shutterReset(){
+    ofLogNotice("ofxVaddioControl") << "shutterReset";
+    
+    packet shutter_reset;
+    shutter_reset.push_back(0x81);
+    shutter_reset.push_back(0x01);
+    shutter_reset.push_back(0x04);
+    shutter_reset.push_back(0x0A);
+    shutter_reset.push_back(0x00);
+    shutter_reset.push_back(0xFF);
+    
+    addToQueue(shutter_reset);
+}
+
+// --------------------------------------------------------
+// 81 01 04 0A 02 FF
+void ofxVaddioControl::shutterUp(){
+    ofLogNotice("ofxVaddioControl") << "shutterUp";
+    
+    packet shutter_up;
+    shutter_up.push_back(0x81);
+    shutter_up.push_back(0x01);
+    shutter_up.push_back(0x04);
+    shutter_up.push_back(0x0A);
+    shutter_up.push_back(0x02);
+    shutter_up.push_back(0xFF);
+    
+    addToQueue(shutter_up);
+}
+
+// --------------------------------------------------------
+// 81 01 04 0A 03 FF
+void ofxVaddioControl::shutterDown(){
+    ofLogNotice("ofxVaddioControl") << "shutterDown";
+    
+    packet shutter_down;
+    shutter_down.push_back(0x81);
+    shutter_down.push_back(0x01);
+    shutter_down.push_back(0x04);
+    shutter_down.push_back(0x0A);
+    shutter_down.push_back(0x03);
+    shutter_down.push_back(0xFF);
+    
+    addToQueue(shutter_down);
+}
+
+// --------------------------------------------------------
+// 81 01 04 42 00 00 0p 0q FF
+void ofxVaddioControl::shutterDirect(float shutter){
+    ofLogNotice("ofxVaddioControl") << "shutterDirect " << shutter;
+    
+    int _shutter = ofMap(shutter, 0, 1,
+                         VADDIO_SHUTTER_MIN,
+                         VADDIO_SHUTTER_MAX);
+    
+    packet shutter_direct;
+    shutter_direct.push_back(0x81);
+    shutter_direct.push_back(0x01);
+    shutter_direct.push_back(0x04);
+    shutter_direct.push_back(0x42);
+    shutter_direct.push_back((_shutter & 0xF000) >> 12);
+    shutter_direct.push_back((_shutter & 0x0F00) >>  8);
+    shutter_direct.push_back((_shutter & 0x00F0) >>  4);
+    shutter_direct.push_back((_shutter & 0x000F));
+    shutter_direct.push_back(0xFF);
+    
+    addToQueue(shutter_direct);
+}
+
+// --------------------------------------------------------
+// 81 09 04 4A FF
+float ofxVaddioControl::shutterInq() {
+    ofLogNotice("ofxVaddioControl") << "shutterInq ";
+    
+    packet cmd;
+    cmd.push_back(0x81);
+    cmd.push_back(0x09);
+    cmd.push_back(0x04);
+    cmd.push_back(0x4A);
+    cmd.push_back(0xFF);
+    write(cmd);
+    packet response = read();
+    
+    if(response.size()!=7) {
+        ofLogWarning("ofxVaddioControl") << "bad response from shutterInq";
+        return -1;
+    } else {
+        int shutter =  (response[2] << 12) +
+            (response[3] <<  8) +
+            (response[4] <<  4) +
+            (response[5]);
+        
+        return ofMap(shutter, VADDIO_SHUTTER_MIN, VADDIO_SHUTTER_MAX, 0, 1);
+    }
+}
 
 // --------------------------------------------------------
 void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
@@ -620,6 +779,11 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
     
     if(args.key==OF_KEY_ESC) {
         home();
+    }
+    
+    if(args.key=='s') {
+        ofLogNotice("ofxVaddioControl") << shutterInq();
+        
     }
     
     if(args.key=='f' && ofGetModifierShortcutKeyPressed()) {
@@ -670,6 +834,17 @@ void ofxVaddioControl::keyPressed(ofKeyEventArgs& args) {
         focusNear();
         focusKeyboardEventInProgress=true;
     }
+    
+    //
+    // SHUTTER
+    //
+    if(args.key=='}') {
+        shutterUp();
+    }
+    if(args.key=='{') {
+        shutterDown();
+    }
+    
     keyDown[args.key]=true;
 }
 
